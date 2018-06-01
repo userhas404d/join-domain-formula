@@ -1,24 +1,15 @@
 {%- from tpldir + '/map.jinja' import join_domain with context %}
 
+get domain join status:
+  cmd.script:
+    - name: salt://{{ tpldir }}/files/get-DomainJoinStatus.ps1
+    - args: -DomainFQDN {{ join_domain.dns_name }}
+    - shell: powershell
+    - stateful: true
+
 join standalone system to domain:
   cmd.run:
     - name: '
-      if ( ( (Get-WmiObject Win32_ComputerSystem).partofdomain ) -eq $True )
-      {
-        $domain = (Get-WmiObject Win32_ComputerSystem).domain;
-        if ( $domain -eq "{{ join_domain.dns_name }}" )
-        {
-          "changed=no comment=`"System is joined already to the correct domain
-            [$domain].`" domain=$domain";
-        }
-        else
-        {
-          throw "System is joined to another domain [$domain]. To join a
-            different domain, first remove it from the current domain."
-        }
-      }
-      else
-      {
         $AesObject = New-Object System.Security.Cryptography.AesCryptoServiceProvider;
         $AesObject.IV = New-Object Byte[]($AesObject.IV.Length);
         $AesObject.Key = [System.Convert]::FromBase64String("{{ join_domain.key }}");
@@ -40,9 +31,11 @@ join standalone system to domain:
     {%- endif -%}
         "changed=yes comment=`"Joined system to the domain.`"
         domain={{ join_domain.dns_name }}"
-      }'
+      '
     - shell: powershell
     - stateful: true
+    - onchanges:
+      - cmd: get domain join status
 
 {%- if join_domain.admins %}
 {%- set admins = join_domain.admins|string|replace('[','')|replace(']','') %}
